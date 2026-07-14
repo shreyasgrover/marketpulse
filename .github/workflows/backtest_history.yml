@@ -1,0 +1,43 @@
+name: Backtest Price History (Weekly)
+
+on:
+  schedule:
+    # Sundays 10:00 UTC — refreshes the 5-year price file for the Backtest tab
+    - cron: "0 10 * * 0"
+  workflow_dispatch: {}   # manual "Run workflow" button
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backtest-history
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Export 5-year price history
+        run: python backtest_history.py
+
+      - name: Commit fresh backtest_prices.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase
+          git add backtest_prices.json
+          git diff --cached --quiet || git commit -m "Refresh backtest price history $(date -u +%F) [skip ci]"
+          git push
